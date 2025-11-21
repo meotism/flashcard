@@ -16,6 +16,13 @@ def migrate_database():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
+    # Check if vocabulary table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vocabulary'")
+    if not cursor.fetchone():
+        print("Database table doesn't exist yet. It will be created when you run the app.")
+        conn.close()
+        return True
+    
     # Check if columns already exist
     cursor.execute("PRAGMA table_info(vocabulary)")
     columns = [column[1] for column in cursor.fetchall()]
