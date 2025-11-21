@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Learning App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">📚 English Learning</h1>
+            <ul class="nav-links">
+                <li><a href="#" onclick="showSection('vocabulary')">Vocabulary</a></li>
+                <li><a href="#" onclick="showSection('flashcard')">Flashcard</a></li>
+                <li><a href="#" onclick="showSection('fill-blank')">Fill the Blank</a></li>
+                <li><a href="#" onclick="showSection('statistics')">Statistics</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <!-- VOCABULARY SECTION -->
+        <section id="vocabulary-section" class="section active">
+            <h2>Vocabulary Management</h2>
+            
+            <div class="card">
+                <h3>Add New Word</h3>
+                <form id="add-word-form">
+                    <div class="form-group">
+                        <label for="word">Word *</label>
+                        <input type="text" id="word" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="definition">Definition *</label>
+                        <textarea id="definition" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="example">Example Sentence</label>
+                        <textarea id="example"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="translation">Translation</label>
+                        <input type="text" id="translation">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Word</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="filter-bar">
+                    <h3>My Vocabulary</h3>
+                    <select id="status-filter" onchange="loadVocabulary()">
+                        <option value="all">All Words</option>
+                        <option value="learning" selected>Learning</option>
+                        <option value="learned">Learned</option>
+                    </select>
+                </div>
+                <div id="vocabulary-list" class="vocabulary-list"></div>
+            </div>
+        </section>
+
+        <!-- FLASHCARD SECTION -->
+        <section id="flashcard-section" class="section">
+            <h2>Flashcard Game</h2>
+            
+            <div class="game-controls">
+                <label>Practice words:</label>
+                <select id="flashcard-filter">
+                    <option value="learning">Learning</option>
+                    <option value="all">All Words</option>
+                    <option value="learned">Learned</option>
+                </select>
+                <button onclick="loadFlashcard()" class="btn btn-primary">Start/Next</button>
+            </div>
+
+            <div class="card flashcard-container">
+                <div id="flashcard" class="flashcard" onclick="flipCard()">
+                    <div class="flashcard-inner">
+                        <div class="flashcard-front">
+                            <h3 id="flashcard-word">Click "Start" to begin</h3>
+                            <p class="hint">Click to flip</p>
+                        </div>
+                        <div class="flashcard-back">
+                            <div id="flashcard-definition"></div>
+                            <div id="flashcard-example"></div>
+                            <div id="flashcard-translation"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flashcard-actions">
+                    <button onclick="markFlashcard(false)" class="btn btn-secondary">😕 Need Practice</button>
+                    <button onclick="markFlashcard(true)" class="btn btn-success">✓ Got It!</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- FILL THE BLANK SECTION -->
+        <section id="fill-blank-section" class="section">
+            <h2>Fill in the Blank</h2>
+            
+            <div class="game-controls">
+                <label>Practice words:</label>
+                <select id="fill-blank-filter">
+                    <option value="learning">Learning</option>
+                    <option value="all">All Words</option>
+                    <option value="learned">Learned</option>
+                </select>
+                <button onclick="loadFillBlank()" class="btn btn-primary">Start/Next</button>
+            </div>
+
+            <div class="card">
+                <div id="fill-blank-game">
+                    <p class="instruction">Click "Start" to begin the game</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- STATISTICS SECTION -->
+        <section id="statistics-section" class="section">
+            <h2>Learning Statistics</h2>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3 id="stat-total">0</h3>
+                    <p>Total Words</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-learning">0</h3>
+                    <p>Learning</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-learned">0</h3>
+                    <p>Learned</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-month-added">0</h3>
+                    <p>Added This Month</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-month-learned">0</h3>
+                    <p>Learned This Month</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="stat-month-practice">0</h3>
+                    <p>Practices This Month</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Monthly Progress</h3>
+                <div id="monthly-stats" class="monthly-stats"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
