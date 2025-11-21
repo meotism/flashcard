@@ -2,7 +2,9 @@
 const API_URL = window.location.origin + '/api';
 let currentFlashcard = null;
 let currentFillBlank = null;
-let socket = null;
+let lastKnownTimestamp = null;
+let lastKnownCount = 0;
+let pollingInterval = null;
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -493,66 +495,54 @@ function playAudio(audioUrl, event) {
     });
 }
 
-// ==================== WEBSOCKET CONNECTION ====================
+// ==================== POLLING FOR UPDATES ====================
 
-function initializeSocket() {
-    // Connect to Socket.IO server - use current origin to work in production
-    socket = io(window.location.origin);
-    
-    socket.on('connect', () => {
-        console.log('✓ Connected to vocabulary server');
-    });
-    
-    socket.on('connected', (data) => {
-        console.log(data.message);
-    });
-    
-    socket.on('vocabulary_added', (word) => {
-        console.log('New word added:', word);
+async function checkForUpdates() {
+    try {
+        const response = await fetch(`${API_URL}/vocabulary/latest`);
+        const data = await response.json();
         
-        // Show notification - with safety check
-        if (word && word.word) {
-            showNotification(`New word added: ${word.word}`, 'success');
-        } else {
-            showNotification('New word added', 'success');
+        // Initialize on first check
+        if (lastKnownTimestamp === null) {
+            lastKnownTimestamp = data.latest_timestamp;
+            lastKnownCount = data.total_count;
+            return;
         }
         
-        // Reload vocabulary list if on vocabulary section
-        const vocabSection = document.getElementById('vocabulary-section');
-        if (vocabSection && vocabSection.classList.contains('active')) {
-            loadVocabulary(currentPage);
+        // Check if there are new changes
+        if (data.latest_timestamp !== lastKnownTimestamp || data.total_count !== lastKnownCount) {
+            const vocabSection = document.getElementById('vocabulary-section');
+            
+            // Only reload if on vocabulary section
+            if (vocabSection && vocabSection.classList.contains('active')) {
+                console.log('New vocabulary changes detected, reloading...');
+                showNotification('Vocabulary updated by another user', 'info');
+                loadVocabulary(currentPage);
+            }
+            
+            // Update tracking variables
+            lastKnownTimestamp = data.latest_timestamp;
+            lastKnownCount = data.total_count;
         }
-    });
-    
-    socket.on('vocabulary_updated', (word) => {
-        console.log('Word updated:', word.word);
-        
-        // Show notification
-        showNotification(`Word updated: ${word.word}`, 'info');
-        
-        // Reload vocabulary list if on vocabulary section
-        const vocabSection = document.getElementById('vocabulary-section');
-        if (vocabSection && vocabSection.classList.contains('active')) {
-            loadVocabulary(currentPage);
-        }
-    });
-    
-    socket.on('vocabulary_deleted', (data) => {
-        console.log('Word deleted:', data.id);
-        
-        // Show notification
-        showNotification('Word deleted', 'warning');
-        
-        // Reload vocabulary list if on vocabulary section
-        const vocabSection = document.getElementById('vocabulary-section');
-        if (vocabSection && vocabSection.classList.contains('active')) {
-            loadVocabulary(currentPage);
-        }
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
-    });
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+    }
+}
+
+function startPolling() {
+    // Poll every 5 seconds
+    if (!pollingInterval) {
+        pollingInterval = setInterval(checkForUpdates, 5000);
+        console.log('Started polling for vocabulary updates');
+    }
+}
+
+function stopPolling() {
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+        console.log('Stopped polling for vocabulary updates');
+    }
 }
 
 // ==================== INITIALIZATION ====================
@@ -560,5 +550,14 @@ function initializeSocket() {
 // Load vocabulary on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadVocabulary();
-    initializeSocket();
+    startPolling();
+});
+
+// Stop polling when page is hidden/closed
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        stopPolling();
+    } else {
+        startPolling();
+    }
 });

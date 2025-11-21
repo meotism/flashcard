@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit
 from models import db, Vocabulary, LearningHistory
 from cambridge_api import fetch_pronunciation_data
 from datetime import datetime, timedelta
@@ -28,7 +27,6 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 db.init_app(app)
 
@@ -85,6 +83,22 @@ def get_vocabulary():
         'has_prev': pagination.has_prev
     })
 
+@app.route('/api/vocabulary/latest', methods=['GET'])
+def get_latest_update():
+    """Get timestamp of the most recent vocabulary change"""
+    latest_word = Vocabulary.query.order_by(Vocabulary.created_at.desc()).first()
+    
+    if latest_word:
+        return jsonify({
+            'latest_timestamp': latest_word.created_at.isoformat(),
+            'total_count': Vocabulary.query.count()
+        })
+    
+    return jsonify({
+        'latest_timestamp': None,
+        'total_count': 0
+    })
+
 @app.route('/api/vocabulary', methods=['POST'])
 def add_vocabulary():
     """Add a new vocabulary word"""
@@ -126,13 +140,6 @@ def add_vocabulary():
         db.session.add(new_word)
         db.session.commit()
         
-        # Emit socket event for new word added
-        try:
-            socketio.emit('vocabulary_added', new_word.to_dict(), broadcast=True)
-        except Exception as e:
-            print(f"Socket.IO emit error: {str(e)}")
-            # Continue even if socket fails
-        
         return jsonify(new_word.to_dict()), 201
     
     except Exception as e:
@@ -161,9 +168,6 @@ def update_vocabulary(id):
     
     db.session.commit()
     
-    # Emit socket event for word updated
-    socketio.emit('vocabulary_updated', word.to_dict(), broadcast=True)
-    
     return jsonify(word.to_dict())
 
 @app.route('/api/vocabulary/<int:id>', methods=['DELETE'])
@@ -173,9 +177,6 @@ def delete_vocabulary(id):
     word_id = word.id
     db.session.delete(word)
     db.session.commit()
-    
-    # Emit socket event for word deleted
-    socketio.emit('vocabulary_deleted', {'id': word_id}, broadcast=True)
     
     return jsonify({'message': 'Word deleted successfully'})
 
@@ -388,16 +389,5 @@ def fetch_word_pronunciation(id):
         }
     })
 
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection"""
-    print('Client connected')
-    emit('connected', {'message': 'Connected to vocabulary server'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    print('Client disconnected')
-
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000, allow_unsafe_werkzeug=True)
+    app.run(debug=True, port=5000)
