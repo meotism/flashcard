@@ -19,8 +19,16 @@ except OSError:
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'vocabulary.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# CORS configuration for production
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 db.init_app(app)
 
@@ -80,43 +88,57 @@ def get_vocabulary():
 @app.route('/api/vocabulary', methods=['POST'])
 def add_vocabulary():
     """Add a new vocabulary word"""
-    data = request.json
-    
-    if not data.get('word') or not data.get('definition'):
-        return jsonify({'error': 'Word and definition are required'}), 400
-    
-    # Check if word already exists
-    existing = Vocabulary.query.filter_by(word=data['word'].lower()).first()
-    if existing:
-        return jsonify({'error': 'Word already exists'}), 409
-    
-    # Fetch pronunciation data from Cambridge (skip if behind proxy or network issues)
-    word_text = data['word'].strip()
-    pronunciation_data = {'ipa_us': None, 'ipa_uk': None, 'audio_us': None, 'audio_uk': None}
     try:
-        pronunciation_data = fetch_pronunciation_data(word_text)
+        data = request.json
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        if not data.get('word') or not data.get('definition'):
+            return jsonify({'error': 'Word and definition are required'}), 400
+        
+        # Check if word already exists
+        existing = Vocabulary.query.filter_by(word=data['word'].lower()).first()
+        if existing:
+            return jsonify({'error': 'Word already exists'}), 409
+        
+        # Fetch pronunciation data from Cambridge (skip if behind proxy or network issues)
+        word_text = data['word'].strip()
+        pronunciation_data = {'ipa_us': None, 'ipa_uk': None, 'audio_us': None, 'audio_uk': None}
+        try:
+            pronunciation_data = fetch_pronunciation_data(word_text)
+        except Exception as e:
+            print(f"Could not fetch pronunciation for '{word_text}': {str(e)}")
+            # Continue without pronunciation data
+        
+        new_word = Vocabulary(
+            word=word_text.lower(),
+            definition=data['definition'],
+            example=data.get('example', ''),
+            translation=data.get('translation', ''),
+            ipa_us=pronunciation_data.get('ipa_us'),
+            ipa_uk=pronunciation_data.get('ipa_uk'),
+            audio_us=pronunciation_data.get('audio_us'),
+            audio_uk=pronunciation_data.get('audio_uk'),
+            status='learning'
+        )
+        
+        db.session.add(new_word)
+        db.session.commit()
+        
+        # Emit socket event for new word added
+        try:
+            socketio.emit('vocabulary_added', new_word.to_dict(), broadcast=True)
+        except Exception as e:
+            print(f"Socket.IO emit error: {str(e)}")
+            # Continue even if socket fails
+        
+        return jsonify(new_word.to_dict()), 201
+    
     except Exception as e:
-        print(f"Could not fetch pronunciation for '{word_text}': {str(e)}")
-        # Continue without pronunciation data
-    new_word = Vocabulary(
-        word=word_text.lower(),
-        definition=data['definition'],
-        example=data.get('example', ''),
-        translation=data.get('translation', ''),
-        ipa_us=pronunciation_data.get('ipa_us'),
-        ipa_uk=pronunciation_data.get('ipa_uk'),
-        audio_us=pronunciation_data.get('audio_us'),
-        audio_uk=pronunciation_data.get('audio_uk'),
-        status='learning'
-    )
-    
-    db.session.add(new_word)
-    db.session.commit()
-    
-    # Emit socket event for new word added
-    socketio.emit('vocabulary_added', new_word.to_dict(), broadcast=True)
-    
-    return jsonify(new_word.to_dict()), 201
+        print(f"Error adding vocabulary: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': f'Failed to add word: {str(e)}'}), 500
 
 @app.route('/api/vocabulary/<int:id>', methods=['PUT'])
 def update_vocabulary(id):

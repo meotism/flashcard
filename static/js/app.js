@@ -1,4 +1,5 @@
-const API_URL = 'http://localhost:5000/api';
+// Use relative API URL to work in both development and production
+const API_URL = window.location.origin + '/api';
 let currentFlashcard = null;
 let currentFillBlank = null;
 let socket = null;
@@ -61,23 +62,27 @@ document.getElementById('add-word-form').addEventListener('submit', async (e) =>
     };
     
     try {
+        console.log('Adding word to API:', API_URL);
         const response = await fetch(`${API_URL}/vocabulary`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         
+        console.log('Response status:', response.status);
+        
         if (response.ok) {
             showNotification('Word added successfully!', 'success');
             document.getElementById('add-word-form').reset();
             loadVocabulary();
         } else {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({ error: `Server error: ${response.status}` }));
+            console.error('Server error:', error);
             showNotification(error.error || 'Failed to add word', 'error');
         }
     } catch (error) {
-        console.error('Error:', error);
-        showNotification('Failed to add word: ' + error.message, 'error');
+        console.error('Fetch error:', error);
+        showNotification('Network error: ' + error.message, 'error');
     }
 });
 
@@ -491,8 +496,8 @@ function playAudio(audioUrl, event) {
 // ==================== WEBSOCKET CONNECTION ====================
 
 function initializeSocket() {
-    // Connect to Socket.IO server
-    socket = io('http://localhost:5000');
+    // Connect to Socket.IO server - use current origin to work in production
+    socket = io(window.location.origin);
     
     socket.on('connect', () => {
         console.log('✓ Connected to vocabulary server');

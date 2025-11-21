@@ -201,6 +201,12 @@ body {
     align-items: center;
 }
 
+.search-box {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .filter-bar select,
 .filter-bar input[type="text"] {
     padding: 0.5rem;
@@ -216,6 +222,12 @@ body {
 .filter-bar input[type="text"]:focus {
     outline: none;
     border-color: #667eea;
+}
+
+.btn-search {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
 }
 
 .vocabulary-list {
@@ -688,8 +700,17 @@ body {
         flex-direction: column;
     }
     
+    .search-box {
+        width: 100%;
+        flex-direction: row;
+    }
+    
     .filter-bar input[type="text"],
     .filter-bar select {
         width: 100%;
+    }
+    
+    .btn-search {
+        flex-shrink: 0;
     }
 }

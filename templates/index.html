@@ -51,7 +51,10 @@
                 <div class="filter-bar">
                     <h3>My Vocabulary</h3>
                     <div class="filter-controls">
-                        <input type="text" id="search-input" placeholder="Search words..." onkeyup="handleSearch()">
+                        <div class="search-box">
+                            <input type="text" id="search-input" placeholder="Search words..." onkeyup="handleSearch()">
+                            <button onclick="loadVocabulary(1)" class="btn btn-search">🔍 Search</button>
+                        </div>
                         <select id="status-filter" onchange="loadVocabulary()">
                             <option value="all">All Words</option>
                             <option value="learning" selected>Learning</option>
