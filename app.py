@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from models import db, Vocabulary, LearningHistory
 from cambridge_api import fetch_pronunciation_data
+from offline_pronunciation import fetch_offline_pronunciation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import random
@@ -18,6 +19,11 @@ except OSError:
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'vocabulary.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your-secret-key-here'
+
+# Feature flags - Set DISABLE_PRONUNCIATION_FETCH=1 to skip external API calls
+DISABLE_PRONUNCIATION_FETCH = os.environ.get('DISABLE_PRONUNCIATION_FETCH', '0') == '1'
+if DISABLE_PRONUNCIATION_FETCH:
+    print("⚠ Pronunciation fetching is DISABLED (server mode)")
 
 # CORS configuration for production
 CORS(app, resources={
@@ -116,14 +122,38 @@ def add_vocabulary():
         if existing:
             return jsonify({'error': 'Word already exists'}), 409
         
-        # Fetch pronunciation data from Cambridge (skip if behind proxy or network issues)
+        # Fetch pronunciation data (try offline first, then Cambridge if available)
         word_text = data['word'].strip()
         pronunciation_data = {'ipa_us': None, 'ipa_uk': None, 'audio_us': None, 'audio_uk': None}
+        
+        # Try offline pronunciation first (always works, no internet needed for IPA)
         try:
-            pronunciation_data = fetch_pronunciation_data(word_text)
+            print(f"Fetching offline pronunciation for: {word_text}")
+            offline_data = fetch_offline_pronunciation(word_text)
+            if offline_data and any(offline_data.values()):
+                pronunciation_data = offline_data
+                print(f"✓ Offline pronunciation: IPA={pronunciation_data.get('ipa_us')}")
         except Exception as e:
-            print(f"Could not fetch pronunciation for '{word_text}': {str(e)}")
-            # Continue without pronunciation data
+            print(f"⚠ Offline pronunciation failed: {str(e)}")
+        
+        # Optionally try Cambridge Dictionary if online (better audio quality)
+        if not DISABLE_PRONUNCIATION_FETCH and not pronunciation_data.get('audio_us'):
+            try:
+                print(f"Trying Cambridge Dictionary for: {word_text}")
+                cambridge_data = fetch_pronunciation_data(word_text, skip_fetch=False)
+                if cambridge_data:
+                    # Use Cambridge audio if available (better quality)
+                    if cambridge_data.get('audio_us'):
+                        pronunciation_data['audio_us'] = cambridge_data['audio_us']
+                    if cambridge_data.get('audio_uk'):
+                        pronunciation_data['audio_uk'] = cambridge_data['audio_uk']
+                    # Use Cambridge IPA if offline didn't work
+                    if cambridge_data.get('ipa_us') and not pronunciation_data.get('ipa_us'):
+                        pronunciation_data['ipa_us'] = cambridge_data['ipa_us']
+                    if cambridge_data.get('ipa_uk') and not pronunciation_data.get('ipa_uk'):
+                        pronunciation_data['ipa_uk'] = cambridge_data['ipa_uk']
+            except Exception as e:
+                print(f"⚠ Cambridge Dictionary failed: {str(e)}")
         
         new_word = Vocabulary(
             word=word_text.lower(),

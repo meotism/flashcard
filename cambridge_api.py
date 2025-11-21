@@ -12,25 +12,22 @@ def fetch_cambridge_data(word):
     Fetch pronunciation (IPA) and audio URLs from Cambridge Dictionary
     Returns: dict with ipa_us, ipa_uk, audio_us, audio_uk
     """
+    # Cambridge Dictionary URL
+    url = f"https://dictionary.cambridge.org/dictionary/english/{word.lower().strip()}"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    # Clear environment proxy settings to prevent interference
+    session = requests.Session()
+    session.trust_env = False  # Ignore system proxy settings
+    
     try:
-        # Cambridge Dictionary URL
-        url = f"https://dictionary.cambridge.org/dictionary/english/{word.lower().strip()}"
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        # Get proxy settings from environment variables if available
-        proxies = None
-        if os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
-            proxies = {
-                'http': os.environ.get('HTTP_PROXY'),
-                'https': os.environ.get('HTTPS_PROXY')
-            }
-        
-        response = requests.get(url, headers=headers, timeout=10, proxies=proxies, verify=True)
+        response = session.get(url, headers=headers, timeout=10)
         
         if response.status_code != 200:
+            print(f"[Cambridge API] HTTP {response.status_code} for '{word}'")
             return None
         
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -87,31 +84,40 @@ def fetch_cambridge_data(word):
         
         return None
         
-    except requests.exceptions.ProxyError as e:
-        print(f"Proxy error for '{word}': Unable to connect through proxy")
-        print("  Tip: If you're behind a corporate proxy, you may need to disable it or configure proxy settings")
-        return None
-    except requests.exceptions.SSLError as e:
-        print(f"SSL error for '{word}': {str(e)}")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        print(f"Connection error for '{word}': Unable to reach Cambridge Dictionary")
+    except requests.exceptions.RequestException as e:
+        print(f"[Cambridge API] Network error for '{word}': {str(e)}")
         return None
     except Exception as e:
-        print(f"Error fetching Cambridge data for '{word}': {str(e)}")
+        print(f"[Cambridge API] Unexpected error for '{word}': {str(e)}")
         return None
 
 
-def fetch_pronunciation_data(word):
+def fetch_pronunciation_data(word, skip_fetch=False):
     """
     Main function to fetch pronunciation data
     First tries Cambridge, can be extended with other sources
+    
+    Args:
+        word: The word to fetch pronunciation for
+        skip_fetch: If True, skip external API calls (for servers without internet)
     """
+    if skip_fetch:
+        print(f"[Cambridge API] Skipping fetch for '{word}' (disabled)")
+        return {
+            'ipa_us': None,
+            'ipa_uk': None,
+            'audio_us': None,
+            'audio_uk': None
+        }
+    
+    print(f"[Cambridge API] Attempting to fetch data for: {word}")
     cambridge_data = fetch_cambridge_data(word)
     
-    if cambridge_data:
+    if cambridge_data and any(cambridge_data.values()):
+        print(f"[Cambridge API] Success - Found pronunciation data")
         return cambridge_data
     
+    print(f"[Cambridge API] No data found, returning empty")
     # Could add fallback to other dictionaries here
     return {
         'ipa_us': None,

@@ -481,17 +481,36 @@ function playAudio(audioUrl, event) {
         event.preventDefault();
     }
     
+    if (!audioUrl) {
+        console.error('No audio URL provided');
+        return;
+    }
+    
     // Stop current audio if playing
     if (currentAudio) {
         currentAudio.pause();
         currentAudio = null;
     }
     
+    console.log('Playing audio:', audioUrl.substring(0, 50) + '...');
+    
     // Play new audio
     currentAudio = new Audio(audioUrl);
+    
+    // Add load event to help debug
+    currentAudio.addEventListener('loadeddata', () => {
+        console.log('Audio loaded successfully');
+    });
+    
+    currentAudio.addEventListener('error', (e) => {
+        console.error('Audio error:', e);
+        console.error('Audio error details:', currentAudio.error);
+    });
+    
     currentAudio.play().catch(error => {
         console.error('Error playing audio:', error);
-        alert('Unable to play audio. Please check your connection.');
+        console.error('Audio URL type:', audioUrl.split(':')[0]);
+        showNotification('Unable to play audio. Audio format may not be supported.', 'error');
     });
 }
 
