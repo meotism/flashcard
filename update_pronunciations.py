@@ -11,7 +11,7 @@ import sqlite3
 
 def migrate_database():
     """Add pronunciation columns if they don't exist"""
-    db_path = 'vocabulary.db'
+    db_path = '/instance/vocabulary.db'
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
