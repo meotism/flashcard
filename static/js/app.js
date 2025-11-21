@@ -3,6 +3,31 @@ let currentFlashcard = null;
 let currentFillBlank = null;
 let socket = null;
 
+// ==================== UTILITY FUNCTIONS ====================
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    
+    // Add to body
+    document.body.appendChild(notification);
+    
+    // Show notification
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+}
+
 // ==================== NAVIGATION ====================
 
 function showSection(sectionName) {
@@ -43,16 +68,16 @@ document.getElementById('add-word-form').addEventListener('submit', async (e) =>
         });
         
         if (response.ok) {
-            alert('Word added successfully!');
+            showNotification('Word added successfully!', 'success');
             document.getElementById('add-word-form').reset();
             loadVocabulary();
         } else {
             const error = await response.json();
-            alert(error.error || 'Failed to add word');
+            showNotification(error.error || 'Failed to add word', 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Failed to add word');
+        showNotification('Failed to add word: ' + error.message, 'error');
     }
 });
 
@@ -100,8 +125,8 @@ async function loadVocabulary(page = 1) {
         listContainer.innerHTML = data.words.map(word => `
             <div class="vocab-item">
                 <div class="vocab-header">
-                    <span class="vocab-word">${word.word}</span>
-                    <span class="vocab-status status-${word.status}">${word.status}</span>
+                    <span class="vocab-word">${word.word || ''}</span>
+                    <span class="vocab-status status-${word.status || 'learning'}">${word.status || 'learning'}</span>
                 </div>
                 ${word.ipa_uk || word.ipa_us ? `
                     <div class="vocab-pronunciation">
@@ -121,18 +146,18 @@ async function loadVocabulary(page = 1) {
                         ` : ''}
                     </div>
                 ` : ''}
-                <div class="vocab-definition"><strong>Definition:</strong> ${word.definition}</div>
+                <div class="vocab-definition"><strong>Definition:</strong> ${word.definition || ''}</div>
                 ${word.example ? `<div class="vocab-example"><strong>Example:</strong> ${word.example}</div>` : ''}
                 ${word.translation ? `<div class="vocab-translation"><strong>Translation:</strong> ${word.translation}</div>` : ''}
                 <div style="font-size: 0.85rem; color: #999; margin-top: 0.5rem;">
-                    Practiced: ${word.times_practiced} times
+                    Practiced: ${word.times_practiced || 0} times
                 </div>
                 <div class="vocab-actions">
                     ${word.status === 'learning' ? 
-                        `<button onclick="markAsLearned(${word.id})" class="btn btn-success">Mark as Learned</button>` :
-                        `<button onclick="markAsLearning(${word.id})" class="btn btn-secondary">Mark as Learning</button>`
+                        `<button onclick="markAsLearned(${word.id}); return false;" class="btn btn-success">Mark as Learned</button>` :
+                        `<button onclick="markAsLearning(${word.id}); return false;" class="btn btn-secondary">Mark as Learning</button>`
                     }
-                    <button onclick="deleteWord(${word.id})" class="btn btn-danger">Delete</button>
+                    <button onclick="deleteWord(${word.id}); return false;" class="btn btn-danger">Delete</button>
                 </div>
             </div>
         `).join('');
@@ -161,28 +186,42 @@ async function loadVocabulary(page = 1) {
 // Mark word as learned
 async function markAsLearned(id) {
     try {
-        await fetch(`${API_URL}/vocabulary/${id}`, {
+        const response = await fetch(`${API_URL}/vocabulary/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'learned' })
         });
-        loadVocabulary(currentPage);
+        
+        if (response.ok) {
+            showNotification('Word marked as learned!', 'success');
+            loadVocabulary(currentPage);
+        } else {
+            showNotification('Failed to update word status', 'error');
+        }
     } catch (error) {
         console.error('Error:', error);
+        showNotification('Failed to update word: ' + error.message, 'error');
     }
 }
 
 // Mark word as learning
 async function markAsLearning(id) {
     try {
-        await fetch(`${API_URL}/vocabulary/${id}`, {
+        const response = await fetch(`${API_URL}/vocabulary/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'learning' })
         });
-        loadVocabulary(currentPage);
+        
+        if (response.ok) {
+            showNotification('Word marked as learning', 'info');
+            loadVocabulary(currentPage);
+        } else {
+            showNotification('Failed to update word status', 'error');
+        }
     } catch (error) {
         console.error('Error:', error);
+        showNotification('Failed to update word: ' + error.message, 'error');
     }
 }
 
@@ -193,12 +232,19 @@ async function deleteWord(id) {
     }
     
     try {
-        await fetch(`${API_URL}/vocabulary/${id}`, {
+        const response = await fetch(`${API_URL}/vocabulary/${id}`, {
             method: 'DELETE'
         });
-        loadVocabulary(currentPage);
+        
+        if (response.ok) {
+            showNotification('Word deleted successfully', 'success');
+            loadVocabulary(currentPage);
+        } else {
+            showNotification('Failed to delete word', 'error');
+        }
     } catch (error) {
         console.error('Error:', error);
+        showNotification('Failed to delete word: ' + error.message, 'error');
     }
 }
 
@@ -457,10 +503,14 @@ function initializeSocket() {
     });
     
     socket.on('vocabulary_added', (word) => {
-        console.log('New word added:', word.word);
+        console.log('New word added:', word);
         
-        // Show notification
-        showNotification(`New word added: ${word.word}`, 'success');
+        // Show notification - with safety check
+        if (word && word.word) {
+            showNotification(`New word added: ${word.word}`, 'success');
+        } else {
+            showNotification('New word added', 'success');
+        }
         
         // Reload vocabulary list if on vocabulary section
         const vocabSection = document.getElementById('vocabulary-section');
@@ -498,29 +548,6 @@ function initializeSocket() {
     socket.on('disconnect', () => {
         console.log('Disconnected from server');
     });
-}
-
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.textContent = message;
-    
-    // Add to body
-    document.body.appendChild(notification);
-    
-    // Show notification
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, 3000);
 }
 
 // ==================== INITIALIZATION ====================
