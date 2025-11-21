@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 from models import db, Vocabulary, LearningHistory
 from cambridge_api import fetch_pronunciation_data
 from datetime import datetime, timedelta
@@ -7,10 +8,19 @@ from dateutil.relativedelta import relativedelta
 import random
 import os
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vocabulary.db'
+app = Flask(__name__, instance_relative_config=True)
+
+# Ensure instance folder exists
+try:
+    os.makedirs(app.instance_path)
+except OSError:
+    pass
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'vocabulary.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'your-secret-key-here'
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 db.init_app(app)
 
@@ -26,15 +36,46 @@ def index():
 
 @app.route('/api/vocabulary', methods=['GET'])
 def get_vocabulary():
-    """Get all vocabulary words with optional filtering"""
+    """Get all vocabulary words with optional filtering, search, and pagination"""
     status = request.args.get('status')  # learning, learned, or all
+    search = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
     
     query = Vocabulary.query
+    
+    # Filter by status
     if status and status != 'all':
         query = query.filter_by(status=status)
     
-    words = query.order_by(Vocabulary.created_at.desc()).all()
-    return jsonify([word.to_dict() for word in words])
+    # Search by word, definition, or translation
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                Vocabulary.word.ilike(search_pattern),
+                Vocabulary.definition.ilike(search_pattern),
+                Vocabulary.translation.ilike(search_pattern),
+                Vocabulary.example.ilike(search_pattern)
+            )
+        )
+    
+    # Paginate results
+    pagination = query.order_by(Vocabulary.created_at.desc()).paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+    
+    return jsonify({
+        'words': [word.to_dict() for word in pagination.items],
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': pagination.page,
+        'per_page': pagination.per_page,
+        'has_next': pagination.has_next,
+        'has_prev': pagination.has_prev
+    })
 
 @app.route('/api/vocabulary', methods=['POST'])
 def add_vocabulary():
@@ -49,10 +90,14 @@ def add_vocabulary():
     if existing:
         return jsonify({'error': 'Word already exists'}), 409
     
-    # Fetch pronunciation data from Cambridge
+    # Fetch pronunciation data from Cambridge (skip if behind proxy or network issues)
     word_text = data['word'].strip()
-    pronunciation_data = fetch_pronunciation_data(word_text)
-    
+    pronunciation_data = {'ipa_us': None, 'ipa_uk': None, 'audio_us': None, 'audio_uk': None}
+    try:
+        pronunciation_data = fetch_pronunciation_data(word_text)
+    except Exception as e:
+        print(f"Could not fetch pronunciation for '{word_text}': {str(e)}")
+        # Continue without pronunciation data
     new_word = Vocabulary(
         word=word_text.lower(),
         definition=data['definition'],
@@ -67,6 +112,9 @@ def add_vocabulary():
     
     db.session.add(new_word)
     db.session.commit()
+    
+    # Emit socket event for new word added
+    socketio.emit('vocabulary_added', new_word.to_dict(), broadcast=True)
     
     return jsonify(new_word.to_dict()), 201
 
@@ -90,14 +138,23 @@ def update_vocabulary(id):
             word.learned_at = datetime.utcnow()
     
     db.session.commit()
+    
+    # Emit socket event for word updated
+    socketio.emit('vocabulary_updated', word.to_dict(), broadcast=True)
+    
     return jsonify(word.to_dict())
 
 @app.route('/api/vocabulary/<int:id>', methods=['DELETE'])
 def delete_vocabulary(id):
     """Delete a vocabulary word"""
     word = Vocabulary.query.get_or_404(id)
+    word_id = word.id
     db.session.delete(word)
     db.session.commit()
+    
+    # Emit socket event for word deleted
+    socketio.emit('vocabulary_deleted', {'id': word_id}, broadcast=True)
+    
     return jsonify({'message': 'Word deleted successfully'})
 
 # ==================== GAME: FLASHCARD ====================
@@ -309,5 +366,16 @@ def fetch_word_pronunciation(id):
         }
     })
 
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    print('Client connected')
+    emit('connected', {'message': 'Connected to vocabulary server'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    print('Client disconnected')
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    socketio.run(app, debug=True, port=5000, allow_unsafe_werkzeug=True)

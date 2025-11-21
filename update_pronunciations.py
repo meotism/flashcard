@@ -119,9 +119,14 @@ def update_pronunciations():
                 if i < total:
                     time.sleep(1)  # 1 second delay between requests
                     
+            except KeyboardInterrupt:
+                print("\n\nOperation cancelled by user.")
+                db.session.rollback()
+                break
             except Exception as e:
-                print(f"  ✗ Error: {str(e)}")
+                print(f"  ✗ Error: {str(e)[:100]}")
                 failed_count += 1
+                # Continue with next word
                 continue
         
         print("\n" + "=" * 70)

@@ -5,6 +5,7 @@ Cambridge Dictionary API scraper to fetch IPA pronunciation and audio URLs
 import requests
 from bs4 import BeautifulSoup
 import re
+import os
 
 def fetch_cambridge_data(word):
     """
@@ -19,7 +20,15 @@ def fetch_cambridge_data(word):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        response = requests.get(url, headers=headers, timeout=10)
+        # Get proxy settings from environment variables if available
+        proxies = None
+        if os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
+            proxies = {
+                'http': os.environ.get('HTTP_PROXY'),
+                'https': os.environ.get('HTTPS_PROXY')
+            }
+        
+        response = requests.get(url, headers=headers, timeout=10, proxies=proxies, verify=True)
         
         if response.status_code != 200:
             return None
@@ -78,6 +87,16 @@ def fetch_cambridge_data(word):
         
         return None
         
+    except requests.exceptions.ProxyError as e:
+        print(f"Proxy error for '{word}': Unable to connect through proxy")
+        print("  Tip: If you're behind a corporate proxy, you may need to disable it or configure proxy settings")
+        return None
+    except requests.exceptions.SSLError as e:
+        print(f"SSL error for '{word}': {str(e)}")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error for '{word}': Unable to reach Cambridge Dictionary")
+        return None
     except Exception as e:
         print(f"Error fetching Cambridge data for '{word}': {str(e)}")
         return None

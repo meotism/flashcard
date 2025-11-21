@@ -192,13 +192,30 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
+    gap: 1rem;
 }
 
-.filter-bar select {
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.filter-bar select,
+.filter-bar input[type="text"] {
     padding: 0.5rem;
     border: 2px solid #e0e0e0;
     border-radius: 5px;
     font-size: 1rem;
+}
+
+.filter-bar input[type="text"] {
+    min-width: 250px;
+}
+
+.filter-bar input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .vocabulary-list {
@@ -564,6 +581,70 @@ body {
     font-size: 1.8rem;
 }
 
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.pagination-info {
+    font-weight: 500;
+    color: #555;
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #ccc;
+}
+
+.pagination button:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Real-time Notifications */
+.notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification-success {
+    background: linear-gradient(135deg, #66bb6a, #43a047);
+}
+
+.notification-info {
+    background: linear-gradient(135deg, #42a5f5, #1e88e5);
+}
+
+.notification-warning {
+    background: linear-gradient(135deg, #ffa726, #fb8c00);
+}
+
+.notification-error {
+    background: linear-gradient(135deg, #ef5350, #e53935);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .nav-links {
@@ -586,5 +667,29 @@ body {
     .vocab-pronunciation {
         flex-direction: column;
         gap: 0.5rem;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .pagination button {
+        width: 100%;
+    }
+    
+    .filter-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .filter-controls {
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    .filter-bar input[type="text"],
+    .filter-bar select {
+        width: 100%;
     }
 }

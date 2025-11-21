@@ -50,11 +50,14 @@
             <div class="card">
                 <div class="filter-bar">
                     <h3>My Vocabulary</h3>
-                    <select id="status-filter" onchange="loadVocabulary()">
-                        <option value="all">All Words</option>
-                        <option value="learning" selected>Learning</option>
-                        <option value="learned">Learned</option>
-                    </select>
+                    <div class="filter-controls">
+                        <input type="text" id="search-input" placeholder="Search words..." onkeyup="handleSearch()">
+                        <select id="status-filter" onchange="loadVocabulary()">
+                            <option value="all">All Words</option>
+                            <option value="learning" selected>Learning</option>
+                            <option value="learned">Learned</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="vocabulary-list" class="vocabulary-list"></div>
             </div>
@@ -154,6 +157,7 @@
         </section>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

@@ -5,8 +5,10 @@ Run this script to add 200+ intermediate to advanced English words
 
 from app import app, db
 from models import Vocabulary
+from cambridge_api import fetch_pronunciation_data
 from datetime import datetime, timedelta
 import random
+import time
 
 # Comprehensive vocabulary words organized by CEFR levels (B1-C1)
 vocabulary_data = {
@@ -190,6 +192,9 @@ vocabulary_data = {
 
 def populate_database():
     with app.app_context():
+        # Ensure database tables are created
+        db.create_all()
+        
         # Check if database already has data
         existing_count = Vocabulary.query.count()
         if existing_count > 0:
@@ -217,12 +222,33 @@ def populate_database():
                     skipped_count += 1
                     continue
                 
+                # Fetch pronunciation data from Cambridge Dictionary
+                print(f"  Fetching pronunciation for '{word_data['word']}'...")
+                pronunciation_data = {'ipa_us': None, 'ipa_uk': None, 'audio_us': None, 'audio_uk': None}
+                
+                try:
+                    pronunciation_data = fetch_pronunciation_data(word_data['word'])
+                    if pronunciation_data and any(pronunciation_data.values()):
+                        ipa_info = []
+                        if pronunciation_data.get('ipa_uk'):
+                            ipa_info.append(f"UK: /{pronunciation_data.get('ipa_uk')}/")
+                        if pronunciation_data.get('ipa_us'):
+                            ipa_info.append(f"US: /{pronunciation_data.get('ipa_us')}/")
+                        if ipa_info:
+                            print(f"    {', '.join(ipa_info)}")
+                except Exception as e:
+                    print(f"    ⚠ Could not fetch pronunciation: {str(e)[:50]}")
+                
                 # Create new vocabulary entry with random created date (past 60 days)
                 new_word = Vocabulary(
                     word=word_data['word'].lower(),
                     definition=word_data['definition'],
                     example=word_data['example'],
                     translation=word_data.get('translation', ''),
+                    ipa_us=pronunciation_data.get('ipa_us'),
+                    ipa_uk=pronunciation_data.get('ipa_uk'),
+                    audio_us=pronunciation_data.get('audio_us'),
+                    audio_uk=pronunciation_data.get('audio_uk'),
                     status='learning',
                     created_at=datetime.now() - timedelta(days=random.randint(0, 60))
                 )
@@ -230,6 +256,9 @@ def populate_database():
                 db.session.add(new_word)
                 print(f"  ✓ Added: '{word_data['word']}'")
                 added_count += 1
+                
+                # Add delay between requests to be polite to the server
+                time.sleep(1)
         
         # Commit all changes
         db.session.commit()
@@ -247,4 +276,10 @@ def populate_database():
         print("\nYou can now start the application with: python app.py")
 
 if __name__ == '__main__':
+    print("=" * 70)
+    print("This script will fetch IPA pronunciation and audio from Cambridge Dictionary")
+    print("⚠ Note: This requires internet access and may take several minutes")
+    print("⚠ If you're behind a proxy, pronunciation fetching may fail (words will still be added)")
+    print("=" * 70)
+    print()
     populate_database()

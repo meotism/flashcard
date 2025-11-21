@@ -1,6 +1,7 @@
 const API_URL = 'http://localhost:5000/api';
 let currentFlashcard = null;
 let currentFillBlank = null;
+let socket = null;
 
 // ==================== NAVIGATION ====================
 
@@ -55,22 +56,48 @@ document.getElementById('add-word-form').addEventListener('submit', async (e) =>
     }
 });
 
+// Pagination state
+let currentPage = 1;
+const perPage = 20;
+let searchTimeout = null;
+
+// Handle search with debounce
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        currentPage = 1; // Reset to first page on new search
+        loadVocabulary();
+    }, 500); // Wait 500ms after user stops typing
+}
+
 // Load vocabulary list
-async function loadVocabulary() {
+async function loadVocabulary(page = 1) {
     const status = document.getElementById('status-filter').value;
+    const search = document.getElementById('search-input').value;
+    currentPage = page;
     
     try {
-        const response = await fetch(`${API_URL}/vocabulary?status=${status}`);
-        const words = await response.json();
+        let url = `${API_URL}/vocabulary?status=${status}&page=${page}&per_page=${perPage}`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
         
         const listContainer = document.getElementById('vocabulary-list');
         
-        if (words.length === 0) {
-            listContainer.innerHTML = '<p class="instruction">No words found. Add some vocabulary!</p>';
+        if (data.words.length === 0) {
+            const searchValue = document.getElementById('search-input').value;
+            if (searchValue) {
+                listContainer.innerHTML = `<p class="instruction">No words found matching "${searchValue}"</p>`;
+            } else {
+                listContainer.innerHTML = '<p class="instruction">No words found. Add some vocabulary!</p>';
+            }
             return;
         }
         
-        listContainer.innerHTML = words.map(word => `
+        listContainer.innerHTML = data.words.map(word => `
             <div class="vocab-item">
                 <div class="vocab-header">
                     <span class="vocab-word">${word.word}</span>
@@ -109,6 +136,23 @@ async function loadVocabulary() {
                 </div>
             </div>
         `).join('');
+        
+        // Add pagination controls
+        if (data.pages > 1) {
+            listContainer.innerHTML += `
+                <div class="pagination">
+                    <button onclick="loadVocabulary(${page - 1})" class="btn btn-secondary" ${!data.has_prev ? 'disabled' : ''}>
+                        ← Previous
+                    </button>
+                    <span class="pagination-info">
+                        Page ${data.current_page} of ${data.pages} (${data.total} words)
+                    </span>
+                    <button onclick="loadVocabulary(${page + 1})" class="btn btn-secondary" ${!data.has_next ? 'disabled' : ''}>
+                        Next →
+                    </button>
+                </div>
+            `;
+        }
     } catch (error) {
         console.error('Error:', error);
     }
@@ -122,7 +166,7 @@ async function markAsLearned(id) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'learned' })
         });
-        loadVocabulary();
+        loadVocabulary(currentPage);
     } catch (error) {
         console.error('Error:', error);
     }
@@ -136,7 +180,7 @@ async function markAsLearning(id) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'learning' })
         });
-        loadVocabulary();
+        loadVocabulary(currentPage);
     } catch (error) {
         console.error('Error:', error);
     }
@@ -152,7 +196,7 @@ async function deleteWord(id) {
         await fetch(`${API_URL}/vocabulary/${id}`, {
             method: 'DELETE'
         });
-        loadVocabulary();
+        loadVocabulary(currentPage);
     } catch (error) {
         console.error('Error:', error);
     }
@@ -398,9 +442,91 @@ function playAudio(audioUrl, event) {
     });
 }
 
+// ==================== WEBSOCKET CONNECTION ====================
+
+function initializeSocket() {
+    // Connect to Socket.IO server
+    socket = io('http://localhost:5000');
+    
+    socket.on('connect', () => {
+        console.log('✓ Connected to vocabulary server');
+    });
+    
+    socket.on('connected', (data) => {
+        console.log(data.message);
+    });
+    
+    socket.on('vocabulary_added', (word) => {
+        console.log('New word added:', word.word);
+        
+        // Show notification
+        showNotification(`New word added: ${word.word}`, 'success');
+        
+        // Reload vocabulary list if on vocabulary section
+        const vocabSection = document.getElementById('vocabulary-section');
+        if (vocabSection && vocabSection.classList.contains('active')) {
+            loadVocabulary(currentPage);
+        }
+    });
+    
+    socket.on('vocabulary_updated', (word) => {
+        console.log('Word updated:', word.word);
+        
+        // Show notification
+        showNotification(`Word updated: ${word.word}`, 'info');
+        
+        // Reload vocabulary list if on vocabulary section
+        const vocabSection = document.getElementById('vocabulary-section');
+        if (vocabSection && vocabSection.classList.contains('active')) {
+            loadVocabulary(currentPage);
+        }
+    });
+    
+    socket.on('vocabulary_deleted', (data) => {
+        console.log('Word deleted:', data.id);
+        
+        // Show notification
+        showNotification('Word deleted', 'warning');
+        
+        // Reload vocabulary list if on vocabulary section
+        const vocabSection = document.getElementById('vocabulary-section');
+        if (vocabSection && vocabSection.classList.contains('active')) {
+            loadVocabulary(currentPage);
+        }
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+    });
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    
+    // Add to body
+    document.body.appendChild(notification);
+    
+    // Show notification
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+}
+
 // ==================== INITIALIZATION ====================
 
 // Load vocabulary on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadVocabulary();
+    initializeSocket();
 });
