@@ -7,6 +7,59 @@ from app import app, db
 from models import Vocabulary
 from cambridge_api import fetch_pronunciation_data
 import time
+import sqlite3
+
+def migrate_database():
+    """Add pronunciation columns if they don't exist"""
+    db_path = 'vocabulary.db'
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Check if columns already exist
+    cursor.execute("PRAGMA table_info(vocabulary)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    columns_to_add = []
+    
+    if 'ipa_us' not in columns:
+        columns_to_add.append('ipa_us')
+    if 'ipa_uk' not in columns:
+        columns_to_add.append('ipa_uk')
+    if 'audio_us' not in columns:
+        columns_to_add.append('audio_us')
+    if 'audio_uk' not in columns:
+        columns_to_add.append('audio_uk')
+    
+    if columns_to_add:
+        print("Adding missing pronunciation columns to database...")
+        try:
+            if 'ipa_us' in columns_to_add:
+                cursor.execute("ALTER TABLE vocabulary ADD COLUMN ipa_us VARCHAR(100)")
+                print("  ✓ Added column: ipa_us")
+            
+            if 'ipa_uk' in columns_to_add:
+                cursor.execute("ALTER TABLE vocabulary ADD COLUMN ipa_uk VARCHAR(100)")
+                print("  ✓ Added column: ipa_uk")
+            
+            if 'audio_us' in columns_to_add:
+                cursor.execute("ALTER TABLE vocabulary ADD COLUMN audio_us VARCHAR(500)")
+                print("  ✓ Added column: audio_us")
+            
+            if 'audio_uk' in columns_to_add:
+                cursor.execute("ALTER TABLE vocabulary ADD COLUMN audio_uk VARCHAR(500)")
+                print("  ✓ Added column: audio_uk")
+            
+            conn.commit()
+            print("✓ Database schema updated successfully!\n")
+        except Exception as e:
+            conn.rollback()
+            print(f"✗ Error updating database: {str(e)}")
+            conn.close()
+            return False
+    
+    conn.close()
+    return True
 
 def update_pronunciations():
     with app.app_context():
@@ -76,6 +129,11 @@ if __name__ == '__main__':
     print("This will fetch IPA pronunciation and audio URLs for existing words")
     print("Note: This process may take several minutes depending on word count")
     print()
+    
+    # First, migrate database if needed
+    if not migrate_database():
+        print("Failed to update database schema. Please check the error above.")
+        exit(1)
     
     response = input("Do you want to continue? (yes/no): ")
     if response.lower() in ['yes', 'y']:
