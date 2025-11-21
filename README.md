@@ -6,6 +6,8 @@ A comprehensive Flask-based English learning application with vocabulary managem
 
 ### 📚 Vocabulary Management
 - Add new words with definitions, examples, and translations
+- **Automatic IPA pronunciation** (UK & US) from Cambridge Dictionary
+- **Audio pronunciation** with playback buttons
 - Track words as "Learning" or "Learned"
 - View and filter your vocabulary list
 - Delete or update word status
@@ -55,6 +57,12 @@ A comprehensive Flask-based English learning application with vocabulary managem
    - Open your browser and navigate to: `http://localhost:5000`
    - The database will be created automatically on first run
 
+4. **[Optional] Update Existing Words with Pronunciation**
+   ```powershell
+   python update_pronunciations.py
+   ```
+   This will fetch IPA pronunciation and audio for existing vocabulary words
+
 ## Project Structure
 
 ```
@@ -82,6 +90,10 @@ flashcard/
    - **Example**: Sentence using the word (optional, needed for Fill the Blank game)
    - **Translation**: Translation to your native language (optional)
 3. Click "Add Word"
+4. **Automatic Features**:
+   - IPA pronunciation (UK & US) is fetched automatically from Cambridge Dictionary
+   - Audio pronunciation URLs are retrieved and playback buttons are added
+   - Click the 🔊 button to hear the pronunciation
 
 ### Playing Flashcard Game
 1. Go to the "Flashcard" tab

@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from models import db, Vocabulary, LearningHistory
+from cambridge_api import fetch_pronunciation_data
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import random
@@ -48,11 +49,19 @@ def add_vocabulary():
     if existing:
         return jsonify({'error': 'Word already exists'}), 409
     
+    # Fetch pronunciation data from Cambridge
+    word_text = data['word'].strip()
+    pronunciation_data = fetch_pronunciation_data(word_text)
+    
     new_word = Vocabulary(
-        word=data['word'].lower(),
+        word=word_text.lower(),
         definition=data['definition'],
         example=data.get('example', ''),
         translation=data.get('translation', ''),
+        ipa_us=pronunciation_data.get('ipa_us'),
+        ipa_uk=pronunciation_data.get('ipa_uk'),
+        audio_us=pronunciation_data.get('audio_us'),
+        audio_uk=pronunciation_data.get('audio_uk'),
         status='learning'
     )
     
@@ -273,6 +282,32 @@ def get_monthly_stats():
         })
     
     return jsonify(stats)
+
+# ==================== PRONUNCIATION API ====================
+
+@app.route('/api/vocabulary/<int:id>/fetch-pronunciation', methods=['POST'])
+def fetch_word_pronunciation(id):
+    """Fetch and update pronunciation data for an existing word"""
+    word = Vocabulary.query.get_or_404(id)
+    
+    pronunciation_data = fetch_pronunciation_data(word.word)
+    
+    word.ipa_us = pronunciation_data.get('ipa_us')
+    word.ipa_uk = pronunciation_data.get('ipa_uk')
+    word.audio_us = pronunciation_data.get('audio_us')
+    word.audio_uk = pronunciation_data.get('audio_uk')
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Pronunciation data updated',
+        'data': {
+            'ipa_us': word.ipa_us,
+            'ipa_uk': word.ipa_uk,
+            'audio_us': word.audio_us,
+            'audio_uk': word.audio_uk
+        }
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

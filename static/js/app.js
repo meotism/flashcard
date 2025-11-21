@@ -76,6 +76,24 @@ async function loadVocabulary() {
                     <span class="vocab-word">${word.word}</span>
                     <span class="vocab-status status-${word.status}">${word.status}</span>
                 </div>
+                ${word.ipa_uk || word.ipa_us ? `
+                    <div class="vocab-pronunciation">
+                        ${word.ipa_uk ? `
+                            <span class="pronunciation-item">
+                                <span class="pronunciation-label">UK:</span>
+                                <span class="ipa-text">/${word.ipa_uk}/</span>
+                                ${word.audio_uk ? `<button class="btn-audio" onclick="playAudio('${word.audio_uk}', event)">🔊</button>` : ''}
+                            </span>
+                        ` : ''}
+                        ${word.ipa_us ? `
+                            <span class="pronunciation-item">
+                                <span class="pronunciation-label">US:</span>
+                                <span class="ipa-text">/${word.ipa_us}/</span>
+                                ${word.audio_us ? `<button class="btn-audio" onclick="playAudio('${word.audio_us}', event)">🔊</button>` : ''}
+                            </span>
+                        ` : ''}
+                    </div>
+                ` : ''}
                 <div class="vocab-definition"><strong>Definition:</strong> ${word.definition}</div>
                 ${word.example ? `<div class="vocab-example"><strong>Example:</strong> ${word.example}</div>` : ''}
                 ${word.translation ? `<div class="vocab-translation"><strong>Translation:</strong> ${word.translation}</div>` : ''}
@@ -158,8 +176,35 @@ async function loadFlashcard() {
         // Reset card to front
         document.getElementById('flashcard').classList.remove('flipped');
         
-        // Update content
-        document.getElementById('flashcard-word').textContent = currentFlashcard.word;
+        // Update content - front side
+        let frontContent = `<h3 id="flashcard-word">${currentFlashcard.word}</h3>`;
+        if (currentFlashcard.ipa_uk || currentFlashcard.ipa_us) {
+            frontContent += '<div class="flashcard-pronunciation">';
+            if (currentFlashcard.ipa_uk) {
+                frontContent += `
+                    <div class="pronunciation-item">
+                        <span class="pronunciation-label">UK:</span>
+                        <span class="ipa-text">/${currentFlashcard.ipa_uk}/</span>
+                        ${currentFlashcard.audio_uk ? `<button class="btn-audio-small" onclick="playAudio('${currentFlashcard.audio_uk}', event)">🔊</button>` : ''}
+                    </div>
+                `;
+            }
+            if (currentFlashcard.ipa_us) {
+                frontContent += `
+                    <div class="pronunciation-item">
+                        <span class="pronunciation-label">US:</span>
+                        <span class="ipa-text">/${currentFlashcard.ipa_us}/</span>
+                        ${currentFlashcard.audio_us ? `<button class="btn-audio-small" onclick="playAudio('${currentFlashcard.audio_us}', event)">🔊</button>` : ''}
+                    </div>
+                `;
+            }
+            frontContent += '</div>';
+        }
+        frontContent += '<p class="hint">Click to flip</p>';
+        
+        document.querySelector('.flashcard-front').innerHTML = frontContent;
+        
+        // Update content - back side
         document.getElementById('flashcard-definition').innerHTML = 
             `<strong>Definition:</strong><br>${currentFlashcard.definition}`;
         document.getElementById('flashcard-example').innerHTML = 
@@ -327,6 +372,30 @@ async function loadStatistics() {
     } catch (error) {
         console.error('Error:', error);
     }
+}
+
+// ==================== AUDIO PLAYBACK ====================
+
+let currentAudio = null;
+
+function playAudio(audioUrl, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    // Stop current audio if playing
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
+    
+    // Play new audio
+    currentAudio = new Audio(audioUrl);
+    currentAudio.play().catch(error => {
+        console.error('Error playing audio:', error);
+        alert('Unable to play audio. Please check your connection.');
+    });
 }
 
 // ==================== INITIALIZATION ====================

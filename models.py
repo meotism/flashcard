@@ -12,6 +12,10 @@ class Vocabulary(db.Model):
     definition = db.Column(db.Text, nullable=False)
     example = db.Column(db.Text)
     translation = db.Column(db.String(200))  # Translation to native language
+    ipa_us = db.Column(db.String(100))  # US pronunciation (IPA)
+    ipa_uk = db.Column(db.String(100))  # UK pronunciation (IPA)
+    audio_us = db.Column(db.String(500))  # US audio URL
+    audio_uk = db.Column(db.String(500))  # UK audio URL
     status = db.Column(db.String(20), default='learning')  # learning, learned
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     learned_at = db.Column(db.DateTime)  # When marked as learned
@@ -24,6 +28,10 @@ class Vocabulary(db.Model):
             'definition': self.definition,
             'example': self.example,
             'translation': self.translation,
+            'ipa_us': self.ipa_us,
+            'ipa_uk': self.ipa_uk,
+            'audio_us': self.audio_us,
+            'audio_uk': self.audio_uk,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'learned_at': self.learned_at.isoformat() if self.learned_at else None,
