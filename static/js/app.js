@@ -239,18 +239,28 @@ async function deleteWord(id) {
     }
     
     try {
+        console.log(`Deleting word with ID: ${id}`);
+        console.log(`DELETE URL: ${API_URL}/vocabulary/${id}`);
+        
         const response = await fetch(`${API_URL}/vocabulary/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
+        
+        console.log(`Delete response status: ${response.status}`);
         
         if (response.ok) {
             showNotification('Word deleted successfully', 'success');
             loadVocabulary(currentPage);
         } else {
-            showNotification('Failed to delete word', 'error');
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Delete failed:', errorData);
+            showNotification(`Failed to delete word: ${response.status}`, 'error');
         }
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Delete error:', error);
         showNotification('Failed to delete word: ' + error.message, 'error');
     }
 }

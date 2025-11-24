@@ -203,12 +203,25 @@ def update_vocabulary(id):
 @app.route('/api/vocabulary/<int:id>', methods=['DELETE'])
 def delete_vocabulary(id):
     """Delete a vocabulary word"""
-    word = Vocabulary.query.get_or_404(id)
-    word_id = word.id
-    db.session.delete(word)
-    db.session.commit()
-    
-    return jsonify({'message': 'Word deleted successfully'})
+    try:
+        word = Vocabulary.query.get_or_404(id)
+        word_id = word.id
+        print(f"[DELETE] Deleting word ID: {word_id} - {word.word}")
+        
+        # Delete related learning history records first (if cascade doesn't work)
+        from models import LearningHistory
+        LearningHistory.query.filter_by(vocabulary_id=word_id).delete()
+        
+        # Delete the vocabulary word
+        db.session.delete(word)
+        db.session.commit()
+        
+        print(f"[DELETE] Successfully deleted word ID: {word_id}")
+        return jsonify({'message': 'Word deleted successfully', 'id': word_id}), 200
+    except Exception as e:
+        print(f"[DELETE] Error deleting word ID {id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # ==================== GAME: FLASHCARD ====================
 

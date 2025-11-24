@@ -43,12 +43,12 @@ class LearningHistory(db.Model):
     __tablename__ = 'learning_history'
     
     id = db.Column(db.Integer, primary_key=True)
-    vocabulary_id = db.Column(db.Integer, db.ForeignKey('vocabulary.id'), nullable=False)
+    vocabulary_id = db.Column(db.Integer, db.ForeignKey('vocabulary.id', ondelete='CASCADE'), nullable=False)
     activity_type = db.Column(db.String(50))  # flashcard, fill_blank, review
     correct = db.Column(db.Boolean)
     practiced_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    vocabulary = db.relationship('Vocabulary', backref='history')
+    vocabulary = db.relationship('Vocabulary', backref=db.backref('history', cascade='all, delete-orphan'))
     
     def to_dict(self):
         return {
